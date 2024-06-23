@@ -440,6 +440,20 @@ class HHLeptonRDFProducer(JetLepMetSyst):
         vvl_vse = kwargs.pop("vvl_vse")
         t_vsmu = kwargs.pop("t_vsmu")
         vl_vsmu = kwargs.pop("vl_vsmu")
+        self.skip_etau_ele_off = kwargs.pop("skip_etau_ele_off", 0)
+        self.skip_etau_tau_off = kwargs.pop("skip_etau_tau_off", 0)
+        self.skip_etau_dR = kwargs.pop("skip_etau_dR", 0)
+        self.skip_etau_trg = kwargs.pop("skip_etau_trg", 0)
+        self.skip_etau_veto = kwargs.pop("skip_etau_veto", 0)
+        self.skip_mutau_mu_off = kwargs.pop("skip_mutau_mu_off", 0)
+        self.skip_mutau_tau_off = kwargs.pop("skip_mutau_tau_off", 0)
+        self.skip_mutau_dR = kwargs.pop("skip_mutau_dR", 0)
+        self.skip_mutau_trg = kwargs.pop("skip_mutau_trg", 0)
+        self.skip_mutau_veto = kwargs.pop("skip_mutau_veto", 0)
+        self.skip_tautau_tau_off = kwargs.pop("skip_tautau_tau_off", 0)
+        self.skip_tautau_dR = kwargs.pop("skip_tautau_dR", 0)
+        self.skip_tautau_trg = kwargs.pop("skip_tautau_trg", 0)
+        self.skip_tautau_veto = kwargs.pop("skip_tautau_veto", 0)
 
         if "/libToolsTools.so" not in ROOT.gSystem.GetLibraries():
             ROOT.gSystem.Load("libToolsTools.so")
@@ -606,49 +620,47 @@ class HHLeptonRDFProducer(JetLepMetSyst):
                         std::vector<trig_req> get_mutau_triggers(
                                 Vbool triggers, bool isMC, int run, int runEra) {
                             std::vector<trig_req> trigger_reqs;
-                            trigger_reqs.push_back(trig_req({triggers[4], 25, 2.3, 20, 2.3, {{2, 8}, {}}}));
-                            trigger_reqs.push_back(trig_req({triggers[5], 28, 2.3, 20, 2.3, {{2, 8}, {}}}));
-                            if (!isMC && run < 317509)
-                                trigger_reqs.push_back(trig_req({triggers[8], 21, 2.3, 32, 2.1, {{64}, {1, 256}}}));
-                            else
-                                trigger_reqs.push_back(trig_req({triggers[9], 21, 2.3, 32, 2.1, {{4}, {1, 16}}}));
+                            trigger_reqs.push_back(trig_req({triggers[4], 26, 2.4, 20, 2.3, 24, 0, {{2, 8}, {}}}));
+                            if (!isMC && run < 317509) {
+                                trigger_reqs.push_back(trig_req({triggers[8], 22, 2.1, 32, 2.1, 0, 27, {{64}, {1, 512}}}));
+                            }
+                            else {
+                                trigger_reqs.push_back(trig_req({triggers[9], 22, 2.1, 32, 2.1, 0, 27, {{64}, {1, 512}}}));
+                            }
                             return trigger_reqs;
                         }
                         std::vector<trig_req> get_etau_triggers(
                                 Vbool triggers, bool isMC, int run, int runEra) {
                             std::vector<trig_req> trigger_reqs;
-                            trigger_reqs.push_back(trig_req({triggers[2], 33, 2.3, 20, 2.3, {{2}, {}}}));
-                            trigger_reqs.push_back(trig_req({triggers[3], 36, 2.3, 20, 2.3, {{2}, {}}}));
-                            if (!isMC && run < 317509)
-                                trigger_reqs.push_back(trig_req({triggers[4], 25, 2.3, 35, 2.1, {{64}, {1, 128}}}));
-                            else
-                                trigger_reqs.push_back(trig_req({triggers[5], 25, 2.3, 35, 2.1, {{8}, {1, 16}}}));
+                            trigger_reqs.push_back(trig_req({triggers[2], 33, 2.5, 20, 2.3, 32, 0, {{2}, {}}}));
+                            if (!isMC && run < 317509) {
+                                trigger_reqs.push_back(trig_req({triggers[4], 25, 2.1, 35, 2.1, 0, 0, {{64}, {1, 256}}}));
+                            }
+                            else {
+                                trigger_reqs.push_back(trig_req({triggers[5], 25, 2.1, 35, 2.1, 0, 0, {{8}, {1, 256}}}));
+                            }
                             return trigger_reqs;
                         }
                         std::vector<trig_req> get_tautau_triggers(
                                 Vbool triggers, bool isMC, bool isRun3, int run, int runEra) {
                             std::vector<trig_req> trigger_reqs;
-                            trigger_reqs.push_back(trig_req({triggers[2], 40, 2.1, 40, 2.1, {{64, 4, 8}, {64, 4, 8}}}));
-                            trigger_reqs.push_back(trig_req({triggers[3], 40, 2.1, 40, 2.1, {{64, 4, 8}, {64, 4, 8}}}));
-                            if (!isMC && run < 317509)
-                                trigger_reqs.push_back(trig_req({triggers[4], 40, 2.1, 40, 2.1, {{64, 4}, {64, 4}}}));
-                            else
-                                trigger_reqs.push_back(trig_req({triggers[5], 40, 2.1, 40, 2.1, {{2, 16}, {2, 16}}}));
+                            if (!isMC && run < 317509) {
+                                trigger_reqs.push_back(trig_req({triggers[2], 40, 2.1, 40, 2.1, 0, 0, {{4, 16, 64}, {4, 16, 64}}}));
+                                trigger_reqs.push_back(trig_req({triggers[3], 40, 2.1, 40, 2.1, 40, 40, {{2, 16, 64}, {2, 16, 64}}}));
+                                trigger_reqs.push_back(trig_req({triggers[4], 40, 2.1, 40, 2.1, 0, 0, {{4, 64}, {4, 64}}}));
+                            }
+                            else {
+                                trigger_reqs.push_back(trig_req({triggers[5], 40, 2.1, 40, 2.1, 0, 0, {{64}, {64}}}));
+                            }
                             return trigger_reqs;
                         }
                         std::vector<trig_req> get_tautaujet_triggers(Vbool triggers, bool isRun3) { // DUMMY FUNCTION
                             std::vector<trig_req> trigger_reqs;
-                            if (isRun3)
-                                trigger_reqs.push_back(trig_req({triggers[0], 35, 2.1, 35, 2.1, {{8, 32, 128, 16384}, {8, 32, 128, 16384}}}));
                             return trigger_reqs;
                         }
                         std::vector<trig_req> get_vbf_triggers(
                                 Vbool triggers, bool isMC, int run, int runEra) {
                             std::vector<trig_req> trigger_reqs;
-                            if (!isMC && run < 317509)
-                                trigger_reqs.push_back(trig_req({triggers[1], 25, 2.1, 25, 2.1, {{64, 4, 8}, {64, 4, 8}}}));
-                            else
-                                trigger_reqs.push_back(trig_req({triggers[2], 25, 2.1, 25, 2.1, {{512, 1, 16}, {512, 1, 16}}}));
                             return trigger_reqs;
                         }
                     """)
@@ -761,16 +773,28 @@ class HHLeptonRDFProducer(JetLepMetSyst):
                 break
         assert runEra != None
 
-        df = df.Define("mutau_triggers", "get_mutau_triggers({%s}, %s, run, %s)" % (
+        skip = ""
+        is_cutflow = (self.skip_etau_ele_off or self.skip_etau_tau_off or self.skip_etau_dR or self.skip_etau_trg or self.skip_etau_veto or \
+                self.skip_mutau_mu_off or self.skip_mutau_tau_off or self.skip_mutau_dR or self.skip_mutau_trg or self.skip_mutau_veto or \
+                self.skip_tautau_tau_off or self.skip_tautau_dR or self.skip_tautau_trg or self.skip_tautau_veto)
+        if is_cutflow:
+            skip = "_skip" + self.skip_etau_ele_off * "_ETau_eleOff" + self.skip_etau_tau_off * "_ETau_tauOff" + \
+                self.skip_etau_dR * "_ETau_dR" + self.skip_etau_trg * "_ETau_Trg" + self.skip_etau_veto * "_ETau_LepVeto" + \
+                self.skip_mutau_mu_off * "_MuTau_muOff" + self.skip_mutau_tau_off * "_MuTau_tauOff" + \
+                self.skip_mutau_dR * "_MuTau_dR" + self.skip_mutau_trg * "_MuTau_Trg" + self.skip_mutau_veto * "_MuTau_LepVeto" + \
+                self.skip_tautau_tau_off * "_TauTau_tauOff" + self.skip_tautau_dR * "_TauTau_dR" + \
+                self.skip_tautau_trg * "_TauTau_Trg" + self.skip_tautau_veto * "_TauTau_LepVeto"
+
+        df = df.Define(f"mutau_triggers{skip}", "get_mutau_triggers({%s}, %s, run, %s)" % (
             ", ".join(self.mutau_triggers), ("true" if self.isMC else "false"), runEra))
-        df = df.Define("etau_triggers", "get_etau_triggers({%s}, %s, run, %s)" % (
+        df = df.Define(f"etau_triggers{skip}", "get_etau_triggers({%s}, %s, run, %s)" % (
             ", ".join(self.etau_triggers), ("true" if self.isMC else "false"), runEra))
-        df = df.Define("tautau_triggers", "get_tautau_triggers({%s}, %s, %s, run, %s)" % (
+        df = df.Define(f"tautau_triggers{skip}", "get_tautau_triggers({%s}, %s, %s, run, %s)" % (
             ", ".join(self.tautau_triggers), ("true" if self.isMC else "false"),
             ("true" if self.isRun3 else "false"), runEra))
-        df = df.Define("tautaujet_triggers", "get_tautaujet_triggers({%s}, %s)" % (
+        df = df.Define(f"tautaujet_triggers{skip}", "get_tautaujet_triggers({%s}, %s)" % (
             ", ".join(self.tautaujet_triggers), ("true" if self.isRun3 else "false")))
-        df = df.Define("vbf_triggers", "get_vbf_triggers({%s}, %s, run, %s)" % (
+        df = df.Define(f"vbf_triggers{skip}", "get_vbf_triggers({%s}, %s, run, %s)" % (
             ", ".join(self.vbf_triggers), ("true" if self.isMC else "false"), runEra))
 
         Electron_mvaIso_WP80 = "Electron_mvaIso_WP80"
@@ -783,7 +807,7 @@ class HHLeptonRDFProducer(JetLepMetSyst):
         if Electron_mvaNoIso_WP90 not in all_branches:
             Electron_mvaNoIso_WP90 = "Electron_mvaFall17V2noIso_WP90"
 
-        df = df.Define("hh_lepton_results", "HHLepton.get_dau_indexes("
+        df = df.Define(f"hh_lepton_results{skip}", "HHLepton.get_dau_indexes("
             "Muon_pt{0}, Muon_eta, Muon_phi, Muon_mass{0}, "
             "Muon_pfRelIso04_all, Muon_dxy, Muon_dz, Muon_mediumId, Muon_tightId, Muon_charge, "
             "Electron_pt{1}, Electron_eta, Electron_phi, Electron_mass{1}, "
@@ -794,21 +818,28 @@ class HHLeptonRDFProducer(JetLepMetSyst):
             "Tau_idDeepTau{6}VSjet, Tau_rawDeepTau{6}VSjet, "
             "Tau_dz, Tau_decayMode, Tau_charge, "
             "TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, "
-            "mutau_triggers, etau_triggers, tautau_triggers, tautaujet_triggers, vbf_triggers"
+            "mutau_triggers{7}, etau_triggers{7}, tautau_triggers{7}, tautaujet_triggers{7}, vbf_triggers{7}, "
+            "{8}, {9}, {10}, {11}, {12}, "
+            "{13}, {14}, {15}, {16}, {17}, "
+            "{18}, {19}, {20}, {21}"
         ")".format(self.muon_syst, self.electron_syst, self.tau_syst,
             Electron_mvaIso_WP80, Electron_mvaNoIso_WP90, Electron_mvaIso_WP90,
-            self.deeptau_version))
+            self.deeptau_version, skip, 
+            self.skip_etau_ele_off, self.skip_etau_tau_off, self.skip_etau_dR, self.skip_etau_trg, self.skip_etau_veto,
+            self.skip_mutau_mu_off, self.skip_mutau_tau_off, self.skip_mutau_dR, self.skip_mutau_trg, self.skip_mutau_veto,
+            self.skip_tautau_tau_off, self.skip_tautau_dR, self.skip_tautau_trg, self.skip_tautau_veto))
 
         branches = []
         for var in variables:
             branchName = var
             if "DeepTau" in branchName:
                 branchName = var[:var.index("VS")] + self.deeptau_version + var[var.index("VS"):]
-            df = df.Define(branchName, "hh_lepton_results.%s" % var)
-            branches.append(branchName)
+            print("hh_lepton_results%s.%s" % (skip, var))
+            df = df.Define(branchName + skip, "hh_lepton_results%s.%s" % (skip, var))
+            branches.append(branchName + skip)
 
         if self.pairType_filter:
-            df = df.Filter("pairType >= 0", "HHLeptonRDF")
+            df = df.Filter(f"pairType{skip} >= 0", f"HHLeptonRDF{skip}")
 
         return df, branches
         # return df, []
@@ -868,9 +899,9 @@ def HHLeptonRDF(**kwargs):
                 t_vsmu: self.config.deeptau.vsmu.Tight
                 vl_vsmu: self.config.deeptau.vsmu.VLoose
                 pairType_filter: True
-
+                skip_etau_ele_off: False
     """
-    pairType_filter = kwargs.pop("pairType_filter")
+    pairType_filter = kwargs.pop("pairType_filter", False)
     return lambda: HHLeptonRDFProducer(pairType_filter=pairType_filter, **kwargs)
 
 

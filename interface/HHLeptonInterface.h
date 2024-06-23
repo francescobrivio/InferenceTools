@@ -120,8 +120,20 @@ class HHLeptonInterface {
       iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
       std::vector<trig_req> mutau_triggers, std::vector<trig_req> etau_triggers,
       std::vector<trig_req> tautau_triggers, std::vector<trig_req> tautaujet_triggers, 
-      std::vector<trig_req> vbf_triggers
+      std::vector<trig_req> vbf_triggers,
+      bool skip_etau_ele_off, bool skip_etau_tau_off, bool skip_etau_dR, bool skip_etau_trg, bool skip_etau_veto,
+      bool skip_mutau_mu_off, bool skip_mutau_tau_off, bool skip_mutau_dR, bool skip_mutau_trg, bool skip_mutau_veto,
+      bool skip_tautau_tau_off, bool skip_tautau_dR, bool skip_tautau_trg, bool skip_tautau_veto
     );
+    lepton_output get_boosted_tau_indexes(
+      fRVec boostedTau_pt, fRVec boostedTau_eta, fRVec boostedTau_phi, fRVec boostedTau_mass,
+      iRVec boostedTau_idAntiEle2018, iRVec boostedTau_idAntiMu,
+      iRVec boostedTau_idMVAnewDM2017v2, iRVec boostedTau_charge,
+      iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
+      std::vector<trig_req> boosted_tau_triggers, int Target_TrigObj_id,
+      bool skip_tautau_tau_off, bool skip_tautau_trg
+    );
+
 
     bool lepton_veto(int muon_index, int electron_index,
       fRVec Muon_pt, fRVec Muon_eta, fRVec Muon_dz, fRVec Muon_dxy,
@@ -135,7 +147,14 @@ class HHLeptonInterface {
       float off_pt2, float off_eta2, float off_phi2, int obj_id2,
       std::vector<trig_req> triggers, 
       iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi);
-    
+
+    bool pass_trigger_split(
+      float off_pt1, float off_eta1, float off_phi1, int obj_id1,
+      float off_pt2, float off_eta2, float off_phi2, int obj_id2,
+      std::vector<trig_req> triggers, 
+      iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
+      bool skip_off_1, bool skip_off_2, bool skip_trg);
+
     bool match_trigger_object(float off_eta, float off_phi, int obj_id, float trig_pt_threshold,
       iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
       std::vector<int> bits);

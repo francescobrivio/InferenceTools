@@ -14,6 +14,171 @@ HHLeptonInterface::HHLeptonInterface (
 // Destructor
 HHLeptonInterface::~HHLeptonInterface() {}
 
+bool HHLeptonInterface::pass_trigger(
+    float off_pt1, float off_eta1, float off_phi1, int obj_id1,
+    float off_pt2, float off_eta2, float off_phi2, int obj_id2,
+    std::vector<trig_req> triggers, 
+    iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi)
+{
+  for (auto &trigger: triggers) {
+    if (!trigger.pass)
+      continue;
+    if (off_pt1 < trigger.pt1_offline || off_pt2 < trigger.pt2_offline
+        || abs(off_eta1) > trigger.eta1_offline || abs(off_eta2) > trigger.eta2_offline)
+      continue;
+    if (trigger.bits[0].size() > 0) {
+      if (!match_trigger_object(off_eta1, off_phi1, obj_id1, trigger.pt1_online,
+          TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, trigger.bits[0]))
+        continue;
+    }
+    if (trigger.bits[1].size() > 0) {
+      if (!match_trigger_object(off_eta2, off_phi2, obj_id2, trigger.pt2_online,
+          TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, trigger.bits[1]))
+        continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+bool HHLeptonInterface::pass_trigger_split(
+    float off_pt1, float off_eta1, float off_phi1, int obj_id1,
+    float off_pt2, float off_eta2, float off_phi2, int obj_id2,
+    std::vector<trig_req> triggers, 
+    iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
+    bool skip_off_1, bool skip_off_2, bool skip_trg)
+{
+  for (auto &trigger: triggers) {
+    if (!trigger.pass)
+      continue;
+    if (!skip_off_1 && (off_pt1 < trigger.pt1_offline || abs(off_eta1) > trigger.eta1_offline))
+      continue;
+    if (!skip_off_2 && (off_pt2 < trigger.pt2_offline || abs(off_eta2) > trigger.eta2_offline))
+      continue;
+    if (!skip_trg && trigger.bits[0].size() > 0) {
+      if (!match_trigger_object(off_eta1, off_phi1, obj_id1, trigger.pt1_online,
+          TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, trigger.bits[0]))
+        continue;
+    }
+    if (!skip_trg && trigger.bits[1].size() > 0) {
+      if (!match_trigger_object(off_eta2, off_phi2, obj_id2, trigger.pt2_online,
+          TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, trigger.bits[1]))
+        continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+// trig_pt_threshold : threshold for TrigObj_pt (used for cross triggers, not sure if strictly needed)
+bool HHLeptonInterface::match_trigger_object(float off_eta, float off_phi, int obj_id,
+    float trig_pt_threshold, iRVec TrigObj_id, iRVec TrigObj_filterBits,
+    fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
+    std::vector<int> bits)
+{
+  for (size_t iobj = 0; iobj < TrigObj_id.size(); iobj++) {
+    if (TrigObj_id[iobj] != obj_id) continue;
+    if (TrigObj_pt[iobj] <= trig_pt_threshold) continue;
+    auto const dPhi(std::abs(reco::deltaPhi(off_phi, TrigObj_phi[iobj])));
+    auto const dEta(std::abs(off_eta - TrigObj_eta[iobj]));
+    auto const delR2(dPhi * dPhi + dEta * dEta);
+    if (delR2 > 0.5 * 0.5)
+      continue;
+    bool matched_bits = true;
+    for (auto & bit : bits) {
+      if ((TrigObj_filterBits[iobj] & bit) == 0) {
+        matched_bits = false;
+        break;
+      }
+    }
+    if (!matched_bits)
+      continue;
+    return true;
+  }
+  return false;
+}
+
+lepton_output HHLeptonInterface::get_boosted_tau_indexes(
+    fRVec boostedTau_pt, fRVec boostedTau_eta, fRVec boostedTau_phi, fRVec boostedTau_mass,
+    iRVec boostedTau_idAntiEle2018, iRVec boostedTau_idAntiMu,
+    iRVec boostedTau_idMVAnewDM2017v2, iRVec boostedTau_charge,
+    iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
+    std::vector<trig_req> boosted_tau_triggers, int Target_TrigObj_id,
+    bool skip_tautau_tau_off, bool skip_tautau_trg
+  )
+{  
+  std::vector<int> goodboostedtaus;
+  for (size_t iboostedtau = 0; iboostedtau < boostedTau_pt.size(); iboostedtau ++) {
+    if (!skip_tautau_tau_off && !(boostedTau_idMVAnewDM2017v2[iboostedtau] &(16)))
+      continue;
+    // not used for the moment but might be required at a certain point for SFs
+    // if (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
+    //     && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11)
+    //   continue;
+    if (!skip_tautau_tau_off && (boostedTau_pt[iboostedtau] <= 40.))
+      continue;
+    goodboostedtaus.push_back(iboostedtau);
+  } // loop over taus
+
+  if (goodboostedtaus.size() >= 2) {
+    std::vector<tau_pair> boosted_tau_pairs;
+    for (auto & itau1 : goodboostedtaus) {
+      auto tau1_tlv = TLorentzVector();
+      tau1_tlv.SetPtEtaPhiM(boostedTau_pt[itau1], boostedTau_eta[itau1], boostedTau_phi[itau1], boostedTau_mass[itau1]);
+      for (auto & itau2 : goodboostedtaus) {
+        if (itau1 == itau2)
+          continue;
+        auto tau2_tlv = TLorentzVector();
+        tau2_tlv.SetPtEtaPhiM(boostedTau_pt[itau2], boostedTau_eta[itau2], boostedTau_phi[itau2], boostedTau_mass[itau2]);
+
+        if (!(skip_tautau_tau_off && skip_tautau_trg) && !pass_trigger_split(
+            tau1_tlv.Pt(), tau1_tlv.Eta(), tau1_tlv.Phi(), Target_TrigObj_id, // id for jets = 1, for taus = 15
+            tau2_tlv.Pt(), tau2_tlv.Eta(), tau2_tlv.Phi(), Target_TrigObj_id, // id for jets = 1, for taus = 15
+            boosted_tau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi,
+            skip_tautau_tau_off, skip_tautau_tau_off, skip_tautau_trg)) {
+          continue;
+        }
+        boosted_tau_pairs.push_back(tau_pair({itau1, static_cast<float> (boostedTau_idMVAnewDM2017v2[itau1]), boostedTau_pt[itau1],
+          itau2, static_cast<float> (boostedTau_idMVAnewDM2017v2[itau2]), boostedTau_pt[itau2], 0, 0}));
+      }
+    }
+    if (boosted_tau_pairs.size() > 0) {
+      std::stable_sort(boosted_tau_pairs.begin(), boosted_tau_pairs.end(), pairSort);
+
+      // if (lepton_veto(-1, -1,
+      //     Muon_pt, Muon_eta, Muon_dz, Muon_dxy,
+      //     Muon_pfRelIso04_all, Muon_mediumId, Muon_tightId,
+      //     Electron_pt, Electron_eta, Electron_dz, Electron_dxy,
+      //     Electron_mvaFall17V2noIso_WP90, Electron_mvaFall17V2Iso_WP90,
+      //     Electron_pfRelIso03_all))
+      //   return lepton_output({
+      //     -1, -1, -1, -1, -1, -1,
+      //     -1., -1., -1., -1, -1, -1, -1,
+      //     -1., -1., -1, -1, -1, -1});
+
+      int ind1 = boosted_tau_pairs[0].index1;
+      int ind2 = boosted_tau_pairs[0].index2;
+      int isOS = (int) (boostedTau_charge[ind1] != boostedTau_charge[ind2]);
+
+      return lepton_output({4, ind1, ind2,
+        boosted_tau_pairs[0].isTauTauJetTrigger, boosted_tau_pairs[0].isVBFtrigger, isOS,
+        boostedTau_eta[ind1], boostedTau_phi[ind1], -1., -1, // boostedTau_decayMode[ind1],
+        boostedTau_idAntiEle2018[ind1], boostedTau_idAntiMu[ind1],
+        boostedTau_idMVAnewDM2017v2[ind1],
+        boostedTau_eta[ind2], boostedTau_phi[ind2], -1, // boostedTau_decayMode[ind2],
+        boostedTau_idAntiEle2018[ind2], boostedTau_idAntiMu[ind2],
+        boostedTau_idMVAnewDM2017v2[ind2]});
+    }
+  }
+
+  return lepton_output({
+    -1, -1, -1, -1, -1, -1,
+    -1., -1., -1., -1, -1, -1, -1,
+    -1., -1., -1, -1, -1, -1});
+
+}
+
+
 lepton_output HHLeptonInterface::get_dau_indexes(
     fRVec Muon_pt, fRVec Muon_eta, fRVec Muon_phi, fRVec Muon_mass,
     fRVec Muon_pfRelIso04_all, fRVec Muon_dxy, fRVec Muon_dz,
@@ -29,31 +194,34 @@ lepton_output HHLeptonInterface::get_dau_indexes(
     iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
     std::vector<trig_req> mutau_triggers, std::vector<trig_req> etau_triggers,
     std::vector<trig_req> tautau_triggers, std::vector<trig_req> tautaujet_triggers,
-    std::vector<trig_req> vbf_triggers 
+    std::vector<trig_req> vbf_triggers ,
+    bool skip_etau_ele_off, bool skip_etau_tau_off, bool skip_etau_dR, bool skip_etau_trg, bool skip_etau_veto,
+    bool skip_mutau_mu_off, bool skip_mutau_tau_off, bool skip_mutau_dR, bool skip_mutau_trg, bool skip_mutau_veto,
+    bool skip_tautau_tau_off, bool skip_tautau_dR, bool skip_tautau_trg, bool skip_tautau_veto
   )
 {
   // mutau channel
   std::vector<int> goodmuons;
   for (size_t imuon = 0; imuon < Muon_pt.size(); imuon ++) {
-    if (fabs(Muon_eta[imuon]) > 2.1 || Muon_pfRelIso04_all[imuon] > 0.15
+    if (!skip_mutau_mu_off && (fabs(Muon_eta[imuon]) > 2.1 || Muon_pfRelIso04_all[imuon] > 0.15
         || fabs(Muon_dxy[imuon]) > 0.045 || fabs(Muon_dz[imuon]) > 0.2
-        || !Muon_tightId[imuon])
+        || !Muon_tightId[imuon]))
       continue;
     goodmuons.push_back(imuon);
   }  // loop over muons
   if (goodmuons.size() >= 1) {
     std::vector<int> goodtaus;
     for (size_t itau = 0; itau < Tau_pt.size(); itau ++) {
-      if (Tau_idDeepTauVSmu[itau] < t_vsmu_ || Tau_idDeepTauVSe[itau] < vl_vse_
-          || Tau_idDeepTauVSjet[itau] < vvvl_vsjet_)
+      if (!skip_mutau_tau_off && (Tau_idDeepTauVSmu[itau] < t_vsmu_ 
+          || Tau_idDeepTauVSe[itau] < vl_vse_ || Tau_idDeepTauVSjet[itau] < vvvl_vsjet_))
         continue;
-      if (fabs(Tau_dz[itau]) > 0.2)
+      if (!skip_mutau_tau_off && (fabs(Tau_dz[itau]) > 0.2))
         continue;
-      if (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
-          && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11)
+      if (!skip_mutau_tau_off && (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
+          && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11))
         continue;
       // common tau pt req for both single and cross triggers
-      if (Tau_pt[itau] <= 20.)
+      if (!skip_mutau_tau_off && (Tau_pt[itau] <= 20.))
         continue;
       goodtaus.push_back(itau);
     } // loop over taus
@@ -66,13 +234,14 @@ lepton_output HHLeptonInterface::get_dau_indexes(
       for (auto & itau: goodtaus) {
         auto tau_tlv = TLorentzVector();
         tau_tlv.SetPtEtaPhiM(Tau_pt[itau], Tau_eta[itau], Tau_phi[itau], Tau_mass[itau]);
-        if (tau_tlv.DeltaR(muon_tlv) < 0.5)
+        if (!skip_mutau_dR && (tau_tlv.DeltaR(muon_tlv) < 0.5))
           continue;
 
-        if (!pass_trigger(
+        if (!(skip_mutau_mu_off && skip_mutau_tau_off && skip_mutau_trg) && !pass_trigger_split(
             muon_tlv.Pt(), muon_tlv.Eta(), muon_tlv.Phi(), 13,
             tau_tlv.Pt(), tau_tlv.Eta(), tau_tlv.Phi(), 15,
-            mutau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi))
+            mutau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi,
+            skip_mutau_mu_off, skip_mutau_tau_off, skip_mutau_trg))
           continue;
 
         tau_pairs.push_back(tau_pair({imuon, Muon_pfRelIso04_all[imuon], Muon_pt[imuon],
@@ -83,7 +252,7 @@ lepton_output HHLeptonInterface::get_dau_indexes(
     if (tau_pairs.size() > 0) {
       std::stable_sort(tau_pairs.begin(), tau_pairs.end(), pairSort);
 
-      if (lepton_veto(tau_pairs[0].index1, -1,
+      if (!skip_mutau_veto && lepton_veto(tau_pairs[0].index1, -1,
           Muon_pt, Muon_eta, Muon_dz, Muon_dxy,
           Muon_pfRelIso04_all, Muon_mediumId, Muon_tightId,
           Electron_pt, Electron_eta, Electron_dz, Electron_dxy,
@@ -109,24 +278,24 @@ lepton_output HHLeptonInterface::get_dau_indexes(
   // etau channel
   std::vector<int> goodelectrons;
   for (size_t iele = 0; iele < Electron_pt.size(); iele ++) {
-    if (!Electron_mvaFall17V2Iso_WP80[iele]
-        || fabs(Electron_dxy[iele]) > 0.045 || fabs(Electron_dz[iele]) > 0.2)
+    if (!skip_etau_ele_off && (!Electron_mvaFall17V2Iso_WP80[iele]
+        || fabs(Electron_dxy[iele]) > 0.045 || fabs(Electron_dz[iele]) > 0.2))
       continue;
     goodelectrons.push_back(iele);
   }  // loop over electrons
   if (goodelectrons.size() >= 1) {
     std::vector<int> goodtaus;
     for (size_t itau = 0; itau < Tau_pt.size(); itau ++) {
-      if (Tau_idDeepTauVSmu[itau] < t_vsmu_ || Tau_idDeepTauVSe[itau] < vl_vse_
-          || Tau_idDeepTauVSjet[itau] < vvvl_vsjet_)
+      if (!skip_etau_tau_off && (Tau_idDeepTauVSmu[itau] < t_vsmu_ 
+          || Tau_idDeepTauVSe[itau] < vl_vse_ || Tau_idDeepTauVSjet[itau] < vvvl_vsjet_))
         continue;
-      if (fabs(Tau_dz[itau]) > 0.2)
+      if (!skip_etau_tau_off && (fabs(Tau_dz[itau]) > 0.2))
         continue;
-      if (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
-          && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11)
+      if (!skip_etau_tau_off && (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
+          && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11))
         continue;
       // common tau pt req for both single and cross triggers
-      if (Tau_pt[itau] <= 20.)
+      if (!skip_etau_tau_off && (Tau_pt[itau] <= 20.))
       continue;
       goodtaus.push_back(itau);
     } // loop over taus
@@ -140,12 +309,13 @@ lepton_output HHLeptonInterface::get_dau_indexes(
       for (auto & itau: goodtaus) {
         auto tau_tlv = TLorentzVector();
         tau_tlv.SetPtEtaPhiM(Tau_pt[itau], Tau_eta[itau], Tau_phi[itau], Tau_mass[itau]);
-        if (tau_tlv.DeltaR(electron_tlv) < 0.5)
+        if (!skip_etau_dR && (tau_tlv.DeltaR(electron_tlv) < 0.5))
           continue;
-        if (!pass_trigger(
+        if (!(skip_etau_ele_off && skip_etau_tau_off && skip_etau_trg) && !pass_trigger_split(
             electron_tlv.Pt(), electron_tlv.Eta(), electron_tlv.Phi(), 11,
             tau_tlv.Pt(), tau_tlv.Eta(), tau_tlv.Phi(), 15,
-            etau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi)) {
+            etau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi,
+            skip_etau_ele_off, skip_etau_tau_off, skip_etau_trg)) {
           continue;
         }
         tau_pairs.push_back(tau_pair({iele, Electron_pfRelIso03_all[iele], Electron_pt[iele],
@@ -156,7 +326,7 @@ lepton_output HHLeptonInterface::get_dau_indexes(
     if (tau_pairs.size() > 0) {
       std::stable_sort(tau_pairs.begin(), tau_pairs.end(), pairSort);
 
-      if (lepton_veto(-1, tau_pairs[0].index1,
+      if (!skip_etau_veto && lepton_veto(-1, tau_pairs[0].index1,
           Muon_pt, Muon_eta, Muon_dz, Muon_dxy,
           Muon_pfRelIso04_all, Muon_mediumId, Muon_tightId,
           Electron_pt, Electron_eta, Electron_dz, Electron_dxy,
@@ -178,20 +348,20 @@ lepton_output HHLeptonInterface::get_dau_indexes(
         Tau_idDeepTauVSe[ind2], Tau_idDeepTauVSmu[ind2],
         Tau_idDeepTauVSjet[ind2]});
     }
-  }  // goodmuons stuff
+  }  // goodelectrons stuff
 
   std::vector<int> goodtaus;
   for (size_t itau = 0; itau < Tau_pt.size(); itau ++) {
-    if (Tau_idDeepTauVSmu[itau] < vl_vsmu_ || Tau_idDeepTauVSe[itau] < vvl_vse_
-        || Tau_idDeepTauVSjet[itau] < vvvl_vsjet_)
+    if (!skip_tautau_tau_off && (Tau_idDeepTauVSmu[itau] < vl_vsmu_ 
+        || Tau_idDeepTauVSe[itau] < vvl_vse_ || Tau_idDeepTauVSjet[itau] < vvvl_vsjet_))
       continue;
-    if (fabs(Tau_dz[itau]) > 0.2)
+    if (!skip_tautau_tau_off && (fabs(Tau_dz[itau]) > 0.2))
       continue;
-    if (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
-        && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11)
+    if (!skip_tautau_tau_off && (Tau_decayMode[itau] != 0 && Tau_decayMode[itau] != 1
+        && Tau_decayMode[itau] != 10 && Tau_decayMode[itau] != 11))
       continue;
     // common tau pt req for both single and cross triggers
-    if (Tau_pt[itau] <= 20.)
+    if (!skip_tautau_tau_off && (Tau_pt[itau] <= 20.))
       continue;
     goodtaus.push_back(itau);
   } // loop over taus
@@ -206,24 +376,27 @@ lepton_output HHLeptonInterface::get_dau_indexes(
           continue;
         auto tau2_tlv = TLorentzVector();
         tau2_tlv.SetPtEtaPhiM(Tau_pt[itau2], Tau_eta[itau2], Tau_phi[itau2], Tau_mass[itau2]);
-        if (tau1_tlv.DeltaR(tau2_tlv) < 0.5)
+        if (!skip_tautau_dR && (tau1_tlv.DeltaR(tau2_tlv) < 0.5))
           continue;
 
         int pass_tautaujet = 0;
         int pass_vbf = 0;
-        if (!pass_trigger(
+        if (!(skip_tautau_tau_off && skip_tautau_trg) && !pass_trigger_split(
             tau1_tlv.Pt(), tau1_tlv.Eta(), tau1_tlv.Phi(), 15,
             tau2_tlv.Pt(), tau2_tlv.Eta(), tau2_tlv.Phi(), 15,
-            tautau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi)) {
-          if (pass_trigger(
+            tautau_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi,
+            skip_tautau_tau_off, skip_tautau_tau_off, skip_tautau_trg)) {
+          if (!(skip_tautau_tau_off && skip_tautau_trg) && pass_trigger_split(
               tau1_tlv.Pt(), tau1_tlv.Eta(), tau1_tlv.Phi(), 15,
               tau2_tlv.Pt(), tau2_tlv.Eta(), tau2_tlv.Phi(), 15,
-              tautaujet_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi))
+              tautaujet_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi,
+              skip_tautau_tau_off, skip_tautau_tau_off, skip_tautau_trg))
             pass_tautaujet = 1;
-          else if (pass_trigger(
+          else if (!(skip_tautau_tau_off && skip_tautau_trg) && pass_trigger_split(
               tau1_tlv.Pt(), tau1_tlv.Eta(), tau1_tlv.Phi(), 15,
               tau2_tlv.Pt(), tau2_tlv.Eta(), tau2_tlv.Phi(), 15,
-              vbf_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi))
+              vbf_triggers, TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi,
+              skip_tautau_tau_off, skip_tautau_tau_off, skip_tautau_trg))
             pass_vbf = 1;
           else continue;
         }
@@ -234,7 +407,7 @@ lepton_output HHLeptonInterface::get_dau_indexes(
     if (tau_pairs.size() > 0) {
       std::stable_sort(tau_pairs.begin(), tau_pairs.end(), pairSort);
 
-      if (lepton_veto(-1, -1,
+      if (!skip_tautau_veto && lepton_veto(-1, -1,
           Muon_pt, Muon_eta, Muon_dz, Muon_dxy,
           Muon_pfRelIso04_all, Muon_mediumId, Muon_tightId,
           Electron_pt, Electron_eta, Electron_dz, Electron_dxy,
@@ -297,59 +470,4 @@ bool HHLeptonInterface::lepton_veto(int muon_index, int electron_index,
     nleps++;
   }
   return (nleps > 0);
-}
-
-bool HHLeptonInterface::pass_trigger(
-    float off_pt1, float off_eta1, float off_phi1, int obj_id1,
-    float off_pt2, float off_eta2, float off_phi2, int obj_id2,
-    std::vector<trig_req> triggers, 
-    iRVec TrigObj_id, iRVec TrigObj_filterBits, fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi)
-{
-  for (auto &trigger: triggers) {
-    if (!trigger.pass)
-      continue;
-    if (off_pt1 < trigger.pt1_offline || off_pt2 < trigger.pt2_offline
-        || abs(off_eta1) > trigger.eta1_offline || abs(off_eta2) > trigger.eta2_offline)
-      continue;
-    if (trigger.bits[0].size() > 0) {
-      if (!match_trigger_object(off_eta1, off_phi1, obj_id1, trigger.pt1_online,
-          TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, trigger.bits[0]))
-        continue;
-    }
-    if (trigger.bits[1].size() > 0) {
-      if (!match_trigger_object(off_eta2, off_phi2, obj_id2, trigger.pt2_online,
-          TrigObj_id, TrigObj_filterBits, TrigObj_pt, TrigObj_eta, TrigObj_phi, trigger.bits[1]))
-        continue;
-    }
-    return true;
-  }
-  return false;
-}
-
-// trig_pt_threshold : threshold for TrigObj_pt (used for cross triggers, not sure if strictly needed)
-bool HHLeptonInterface::match_trigger_object(float off_eta, float off_phi, int obj_id,
-    float trig_pt_threshold, iRVec TrigObj_id, iRVec TrigObj_filterBits,
-    fRVec TrigObj_pt, fRVec TrigObj_eta, fRVec TrigObj_phi,
-    std::vector<int> bits)
-{
-  for (size_t iobj = 0; iobj < TrigObj_id.size(); iobj++) {
-    if (TrigObj_id[iobj] != obj_id) continue;
-    if (TrigObj_pt[iobj] <= trig_pt_threshold) continue;
-    auto const dPhi(std::abs(reco::deltaPhi(off_phi, TrigObj_phi[iobj])));
-    auto const dEta(std::abs(off_eta - TrigObj_eta[iobj]));
-    auto const delR2(dPhi * dPhi + dEta * dEta);
-    if (delR2 > 0.5 * 0.5)
-      continue;
-    bool matched_bits = true;
-    for (auto & bit : bits) {
-      if ((TrigObj_filterBits[iobj] & bit) == 0) {
-        matched_bits = false;
-        break;
-      }
-    }
-    if (!matched_bits)
-      continue;
-    return true;
-  }
-  return false;
 }
